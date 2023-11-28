@@ -6,7 +6,7 @@ from typing import Dict, Optional
 import torch
 from datasets import Dataset, load_dataset
 from peft import LoraConfig
-from transformers import AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer, HfArgumentParser, TrainingArguments, BitsAndBytesConfig
 
 from trl import DPOTrainer
 
@@ -127,14 +127,14 @@ def get_stack_exchange_paired(
 if __name__ == "__main__":
     parser = HfArgumentParser(ScriptArguments)
     script_args = parser.parse_args_into_dataclasses()[0]
-    print(script_args)
+
+    quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.bfloat16)
 
     # 1. load a pretrained model
     model = AutoModelForCausalLM.from_pretrained(
         script_args.model_name_or_path,
         low_cpu_mem_usage=True,
-        torch_dtype=torch.float16,
-        load_in_4bit=True,
+        quantization_config=quantization_config,
         cache_dir=CACHE_DIR
     )
     model.config.use_cache = False
@@ -148,8 +148,7 @@ if __name__ == "__main__":
     model_ref = AutoModelForCausalLM.from_pretrained(
         script_args.model_name_or_path,
         low_cpu_mem_usage=True,
-        torch_dtype=torch.float16,
-        load_in_4bit=True,
+        quantization_config=quantization_config,
         cache_dir=CACHE_DIR
     )
     tokenizer = AutoTokenizer.from_pretrained(script_args.model_name_or_path, cache_dir=CACHE_DIR)
