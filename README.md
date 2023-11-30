@@ -1,6 +1,6 @@
 # fin-rlhf
 
-Run SFT with: ``accelerate launch sft.py --training_args.output_dir="sft/"``
+Run SFT with: ``accelerate launch sft.py --output_dir="sft/"``
 
 Generate dataset with ``python feedback/generate.py --model_name="mistralai/Mistral-7B-v0.1" --dataset_name="gbharti/finance-alpaca" --save_path="feedback/finance-alpaca-unlabeled.csv" --num_steps=5``
 
