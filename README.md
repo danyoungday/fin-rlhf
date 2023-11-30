@@ -1,8 +1,10 @@
 # fin-rlhf
 
+Run SFT with: ``accelerate launch sft.py --training_args.output_dir="sft/"``
+
 Generate dataset with ``python feedback/generate.py --model_name="mistralai/Mistral-7B-v0.1" --dataset_name="gbharti/finance-alpaca" --save_path="feedback/finance-alpaca-unlabeled.csv" --num_steps=5``
 
-Annotate dataset with ``python feedback/annotate.py``
+Annotate dataset with ``python feedback/annotate.py --unlabeled_path="feedback/finance-alpaca-unlabeled.csv" --labels_path="feedback/finance-alpaca-labels.csv"``
 
 Merge generations with annotations and upload to huggingface with ``python feedback/merge.py --hf_repo="danyoung/finance-feedback"``
 
