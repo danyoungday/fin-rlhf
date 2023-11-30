@@ -39,6 +39,17 @@ def create_argparser():
     return args
 
 
+def load_finance_dataset(save_path, cache_dir):
+    # Read to the correct number in the dataset
+    n = sum(1 for _ in open(save_path)) - 1
+    ds = load_dataset("gbharti/finance-alpaca", cache_dir=cache_dir, split=f"train[{n}:]")
+    ds = ds.map(
+        lambda example: {"prompt": 
+                        "<s>[INST] " + example["instruction"] + " [/INST]"},
+        num_proc=4)
+    return ds
+
+
 def generate_response_pair(model, tokenizer, batch):
     """
     Generates a pair of responses given a batch of prompts, a model, and a tokenizer.
@@ -47,8 +58,8 @@ def generate_response_pair(model, tokenizer, batch):
     """
     tokens = tokenizer(batch, padding=True, return_tensors="pt").to(model.device)
     prompt_len = tokens.input_ids.shape[1]
-    out_a = model.generate(**tokens, max_length=128, do_sample=True, pad_token_id=50256)
-    out_b = model.generate(**tokens, max_length=128, do_sample=True, pad_token_id=50256)
+    out_a = model.generate(**tokens, max_length=128, do_sample=True, pad_token_id=tokenizer.eos_token_id)
+    out_b = model.generate(**tokens, max_length=128, do_sample=True, pad_token_id=tokenizer.eos_token_id)
     prompts = tokenizer.batch_decode(out_a[:,:prompt_len], skip_special_tokens=True) 
     responses_a = tokenizer.batch_decode(out_a[:,prompt_len:], skip_special_tokens=True)
     responses_b = tokenizer.batch_decode(out_b[:,prompt_len:], skip_special_tokens=True)
@@ -57,12 +68,6 @@ def generate_response_pair(model, tokenizer, batch):
 
 if __name__=="__main__":
     args = create_argparser()
-    if torch.cuda.is_available():
-        device = "cuda"
-    elif torch.backends.mps.is_available():
-        device = "mps"
-    else:
-        device = "cpu"
 
     quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.bfloat16)
     model = AutoModelForCausalLM.from_pretrained(args.model_name, 
@@ -79,15 +84,16 @@ if __name__=="__main__":
         with(open(args.save_path, "w")) as f:
             f.write("prompt,response_a,response_b\n")
 
-    # Read to the correct number in the dataset
-    n = sum(1 for _ in open(args.save_path)) - 1
-    ds = load_dataset(args.dataset_name, cache_dir=args.cache_dir)
-    train = ds["train"][n:]
-
+    ds = None
+    if args.dataset_name == "gbharti/finance-alpaca":
+        ds = load_finance_dataset(args.save_path, args.cache_dir)
+    else:
+        raise ValueError("Invalid value for args.dataset_name")
+    
     with open(args.save_path, "a", newline='') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         write_batch = []
-        dl = DataLoader(train["instruction"], batch_size=args.batch_size, shuffle=False)
+        dl = DataLoader(ds["prompt"], batch_size=args.batch_size, shuffle=False)
         for step, batch in tqdm(enumerate(dl), total=args.num_steps):
             if step == args.num_steps:
                 break
