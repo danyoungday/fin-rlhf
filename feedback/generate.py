@@ -17,9 +17,6 @@ def create_argparser():
     parser.add_argument("--dataset_name",
                         default="gbharti/finance-alpaca",
                         help="the dataset to generate responses to")
-    parser.add_argument("--device",
-                        default="mps",
-                        help="device to load model onto")
     parser.add_argument("--cache_dir",
                         default="cache_dir",
                         help="where to cache the huggingface objects")
@@ -61,8 +58,15 @@ def generate_response_pair(model, tokenizer, batch):
 if __name__=="__main__":
     args = create_argparser()
 
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
+
     model = AutoModelForCausalLM.from_pretrained(args.model_name, cache_dir=args.cache_dir)
-    model.to(args.device)
+    model.to(device)
     model.eval()
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name, padding_side="left", cache_dir=args.cache_dir)
