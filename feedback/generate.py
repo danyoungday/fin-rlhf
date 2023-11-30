@@ -4,7 +4,7 @@ import pandas as pd
 from tqdm import tqdm
 import csv
 
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from datasets import load_dataset
 
 import torch
@@ -27,7 +27,7 @@ def create_argparser():
                         type=int,
                         default=4,
                         help="number of prompts to generate responses for at once")
-    parser.add_argument("--num_batches",
+    parser.add_argument("--num_steps",
                         type=int,
                         default=-1,
                         help="number of batches to save. -1 means do not stop.")
@@ -47,8 +47,8 @@ def generate_response_pair(model, tokenizer, batch):
     """
     tokens = tokenizer(batch, padding=True, return_tensors="pt").to(model.device)
     prompt_len = tokens.input_ids.shape[1]
-    out_a = model.generate(**tokens, max_new_tokens=16, do_sample=True, pad_token_id=50256)
-    out_b = model.generate(**tokens, max_new_tokens=16, do_sample=True, pad_token_id=50256)
+    out_a = model.generate(**tokens, max_length=128, do_sample=True, pad_token_id=50256)
+    out_b = model.generate(**tokens, max_length=128, do_sample=True, pad_token_id=50256)
     prompts = tokenizer.batch_decode(out_a[:,:prompt_len], skip_special_tokens=True) 
     responses_a = tokenizer.batch_decode(out_a[:,prompt_len:], skip_special_tokens=True)
     responses_b = tokenizer.batch_decode(out_b[:,prompt_len:], skip_special_tokens=True)
@@ -57,7 +57,6 @@ def generate_response_pair(model, tokenizer, batch):
 
 if __name__=="__main__":
     args = create_argparser()
-
     if torch.cuda.is_available():
         device = "cuda"
     elif torch.backends.mps.is_available():
@@ -65,10 +64,13 @@ if __name__=="__main__":
     else:
         device = "cpu"
 
-    model = AutoModelForCausalLM.from_pretrained(args.model_name, cache_dir=args.cache_dir)
-    model.to(device)
+    quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.bfloat16)
+    model = AutoModelForCausalLM.from_pretrained(args.model_name, 
+                                                 low_cpu_mem_usage=True,
+                                                 quantization_config=quantization_config,
+                                                 device_map="auto",
+                                                 cache_dir=args.cache_dir)
     model.eval()
-
     tokenizer = AutoTokenizer.from_pretrained(args.model_name, padding_side="left", cache_dir=args.cache_dir)
     tokenizer.pad_token = tokenizer.eos_token
 
@@ -81,13 +83,13 @@ if __name__=="__main__":
     n = sum(1 for _ in open(args.save_path)) - 1
     ds = load_dataset(args.dataset_name, cache_dir=args.cache_dir)
     train = ds["train"][n:]
-    
+
     with open(args.save_path, "a", newline='') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         write_batch = []
         dl = DataLoader(train["instruction"], batch_size=args.batch_size, shuffle=False)
-        for step, batch in tqdm(enumerate(dl)):
-            if step == args.num_batches:
+        for step, batch in tqdm(enumerate(dl), total=args.num_steps):
+            if step == args.num_steps:
                 break
 
             # Generate responses for batch
