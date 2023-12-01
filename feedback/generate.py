@@ -14,6 +14,9 @@ def create_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name",
                         help="the model to generate responses from")
+    parser.add_argument("--tokenizer_name",
+                        default=None,
+                        help="the tokenizer's name")
     parser.add_argument("--dataset_name",
                         default="gbharti/finance-alpaca",
                         help="the dataset to generate responses to")
@@ -42,10 +45,12 @@ def create_argparser():
 def load_finance_dataset(save_path, cache_dir):
     # Read to the correct number in the dataset
     n = sum(1 for _ in open(save_path)) - 1
-    ds = load_dataset("gbharti/finance-alpaca", cache_dir=cache_dir, split=f"train[{n}:]")
+    ds = load_dataset("gbharti/finance-alpaca", cache_dir=cache_dir, split=f"train[40%:]")
+    idxs = range(n, len(ds))
+    ds = ds.select(idxs)
     ds = ds.map(
-        lambda example: {"prompt": 
-                        "<s>[INST] " + example["instruction"] + " [/INST]"},
+        lambda example: {"text": 
+                        f"<s>[INST] {example['instruction']} [/INST] {example['input']}"},
         num_proc=4)
     return ds
 
@@ -69,14 +74,20 @@ def generate_response_pair(model, tokenizer, batch):
 if __name__=="__main__":
     args = create_argparser()
 
-    quantization_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.bfloat16)
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype="float16",
+        use_nested_quant = True,
+    )
     model = AutoModelForCausalLM.from_pretrained(args.model_name, 
                                                  low_cpu_mem_usage=True,
-                                                 quantization_config=quantization_config,
+                                                 quantization_config=bnb_config,
                                                  device_map="auto",
                                                  cache_dir=args.cache_dir)
     model.eval()
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name, padding_side="left", cache_dir=args.cache_dir)
+    tokenizer_name = args.tokenizer_name if args.tokenizer_name else args.model_name
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, padding_side="left", cache_dir=args.cache_dir)
     tokenizer.pad_token = tokenizer.eos_token
 
     # If the file doesn't exist, create the header
@@ -93,7 +104,7 @@ if __name__=="__main__":
     with open(args.save_path, "a", newline='') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
         write_batch = []
-        dl = DataLoader(ds["prompt"], batch_size=args.batch_size, shuffle=False)
+        dl = DataLoader(ds["text"], batch_size=args.batch_size, shuffle=False)
         for step, batch in tqdm(enumerate(dl), total=args.num_steps):
             if step == args.num_steps:
                 break

@@ -17,6 +17,7 @@ from trl import SFTTrainer
 class ScriptArguments:
     model_name: Optional[str] = field(default="mistralai/Mistral-7B-v0.1", metadata={"help": "the model name"})
 
+    resume_from_checkpoint: Optional[bool] = field(default=False, metadata={"help": "continue from a"})
     cache_dir: Optional[str] = field(default="cache_dir", metadata={"help": "where to cache huggingface objects"})
     dataset_name: Optional[str] = field(default="gbharti/finance-alpaca", metadata={"help": "the dataset name"})
     # subset: Optional[str] = field(default="data/finetune", metadata={"help": "the subset to use"})
@@ -27,10 +28,10 @@ class ScriptArguments:
     seq_length: Optional[int] = field(default=1024, metadata={"help": "the sequence length"})
     num_workers: Optional[int] = field(default=4, metadata={"help": "the number of workers"})
 
-    output_dir: Optional[str] = field(default="./results")
-    max_steps: Optional[int] = field(default=5)
-    logging_steps: Optional[int] = field(default=1)
-    save_steps: Optional[int] = field(default=3)
+    output_dir: Optional[str] = field(default="./results/sft-finqa")
+    max_steps: Optional[int] = field(default=1000)
+    logging_steps: Optional[int] = field(default=10)
+    save_steps: Optional[int] = field(default=10)
     per_device_train_batch_size: Optional[int] = field(default=4)
     per_device_eval_batch_size: Optional[int] = field(default=4)
     gradient_accumulation_steps: Optional[int] = field(default=1)
@@ -51,18 +52,17 @@ class ScriptArguments:
 def create_datasets(args):
     dataset = load_dataset(
         args.dataset_name,
-        # data_dir=args.subset,
         split=args.split,
         token=True,
         num_proc=args.num_workers,
         cache_dir=args.cache_dir,
     )
-
+    dataset = dataset.shuffle(seed=42)
     dataset = dataset.map(
-        lambda example: {"text": f"<s>[INST] {example['instruction']} [/INST] {example['output']}</s>"}, 
+        lambda example: {"text": f"<s>[INST] {example['instruction']} [/INST] {example['input']} {example['output']}</s>"}, 
         num_proc=args.num_workers
     )
-    dataset = dataset.train_test_split(test_size=0.005)
+    dataset = dataset.train_test_split(test_size=0.005, shuffle=False)
     train_data = dataset["train"]
     valid_data = dataset["test"]
     print(f"Size of the train set: {len(train_data)}. Size of the validation set: {len(valid_data)}")
@@ -131,8 +131,6 @@ if __name__ == "__main__":
         optim=script_args.optim,
         run_name=script_args.run_name,
         report_to=script_args.report_to,
-        fp16=False,
-        bf16=False
     )
 
     trainer = SFTTrainer(
