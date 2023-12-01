@@ -59,7 +59,7 @@ def create_datasets(args):
     )
     dataset = dataset.shuffle(seed=42)
     dataset = dataset.map(
-        lambda example: {"text": f"<s>[INST] {example['instruction']} [/INST] {example['input']} {example['output']}</s>"}, 
+        lambda example: {"text": f"<s>[INST] {example['instruction']} [/INST] {example['output']}</s>"}, 
         num_proc=args.num_workers
     )
     dataset = dataset.train_test_split(test_size=0.005, shuffle=False)

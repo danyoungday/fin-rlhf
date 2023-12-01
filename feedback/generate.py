@@ -26,6 +26,10 @@ def create_argparser():
     parser.add_argument("--save_path",
                         default="feedback/unlabeled.csv",
                         help="path to save the unlabeled data to")
+    parser.add_argument("--max_len",
+                        type=int,
+                        default=1024,
+                        help="max length of output")
     parser.add_argument("--batch_size",
                         type=int,
                         default=4,
@@ -45,17 +49,17 @@ def create_argparser():
 def load_finance_dataset(save_path, cache_dir):
     # Read to the correct number in the dataset
     n = sum(1 for _ in open(save_path)) - 1
-    ds = load_dataset("gbharti/finance-alpaca", cache_dir=cache_dir, split=f"train[40%:]")
-    idxs = range(n, len(ds))
+    ds = load_dataset("gbharti/finance-alpaca", cache_dir=cache_dir, split=f"train[:24%]")
+    idxs = range(int(0.6 * len(ds)) + n, int(0.8 * len(ds)))
     ds = ds.select(idxs)
     ds = ds.map(
         lambda example: {"text": 
-                        f"<s>[INST] {example['instruction']} [/INST] {example['input']}"},
+                        f"<s>[INST] {example['instruction']} [/INST]"},
         num_proc=4)
     return ds
 
 
-def generate_response_pair(model, tokenizer, batch):
+def generate_response_pair(model, tokenizer, batch, max_len):
     """
     Generates a pair of responses given a batch of prompts, a model, and a tokenizer.
     Input should be shape N list of strings
@@ -63,8 +67,8 @@ def generate_response_pair(model, tokenizer, batch):
     """
     tokens = tokenizer(batch, padding=True, return_tensors="pt").to(model.device)
     prompt_len = tokens.input_ids.shape[1]
-    out_a = model.generate(**tokens, max_length=128, do_sample=True, pad_token_id=tokenizer.eos_token_id)
-    out_b = model.generate(**tokens, max_length=128, do_sample=True, pad_token_id=tokenizer.eos_token_id)
+    out_a = model.generate(**tokens, max_length=max_len, do_sample=True, pad_token_id=tokenizer.eos_token_id)
+    out_b = model.generate(**tokens, max_length=max_len, do_sample=True, pad_token_id=tokenizer.eos_token_id)
     prompts = tokenizer.batch_decode(out_a[:,:prompt_len], skip_special_tokens=True) 
     responses_a = tokenizer.batch_decode(out_a[:,prompt_len:], skip_special_tokens=True)
     responses_b = tokenizer.batch_decode(out_b[:,prompt_len:], skip_special_tokens=True)
@@ -110,7 +114,7 @@ if __name__=="__main__":
                 break
 
             # Generate responses for batch
-            prompts, responses_a, responses_b = generate_response_pair(model, tokenizer, batch)
+            prompts, responses_a, responses_b = generate_response_pair(model, tokenizer, batch, args.max_len)
 
             # Batch out outputs so we minimize the amount of file writes.
             # Lines are wrapped in quotes so the commas can go in the csv.

@@ -22,8 +22,11 @@ if __name__ == "__main__":
     with open(args.labels_path, "a") as f:
         for i in range(n, len(df)):
             row = df.iloc[i]
+            print("".join(["=" for _ in range(100)]))
             print(f"Prompt: {repr(row['prompt'])}")
+            print("".join(["-" for _ in range(100)]))
             print(f"Response A: {repr(row['response_a'])}")
+            print("".join(["-" for _ in range(100)]))
             print(f"Response B: {repr(row['response_b'])}")
             label = input("1 for prompt A, 2 for prompt B")
             f.write(f"{int(label)-1}\n")
