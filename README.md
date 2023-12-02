@@ -13,3 +13,5 @@ Merge generations with annotations and upload to huggingface with ``python feedb
 Run DPO with ``accelerate launch dpo.py --output_dir="dpo" --train_pct=0.01 --max_steps=5 --logging_steps=1 --eval_steps=5 --save_steps=5``
 
 Upload model with ``huggingface-cli upload danyoung/finance-qa results/sft-finqa/final_model``
+
+Evaluate a model with ``accelerate launch evaluation/evaluate.py --model_name="results/sft-finqa/final_model" --tokenizer_name="mistralai/Mistral-7B-v0.1"``
