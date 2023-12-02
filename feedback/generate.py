@@ -4,6 +4,7 @@ import pandas as pd
 from tqdm import tqdm
 import csv
 
+from accelerate import Accelerator
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from datasets import load_dataset
 
@@ -48,9 +49,9 @@ def create_argparser():
 
 def load_finance_dataset(save_path, cache_dir):
     # Read to the correct number in the dataset
-    n = sum(1 for _ in open(save_path)) - 1
+    df = pd.read_csv(save_path, header=0)
     ds = load_dataset("gbharti/finance-alpaca", cache_dir=cache_dir, split=f"train[:24%]")
-    idxs = range(int(0.6 * len(ds)) + n, int(0.8 * len(ds)))
+    idxs = range(int(0.6 * len(ds)) + len(df), int(0.8 * len(ds)))
     ds = ds.select(idxs)
     ds = ds.map(
         lambda example: {"text": 
@@ -85,9 +86,8 @@ if __name__=="__main__":
         use_nested_quant = True,
     )
     model = AutoModelForCausalLM.from_pretrained(args.model_name, 
-                                                 low_cpu_mem_usage=True,
                                                  quantization_config=bnb_config,
-                                                 device_map="auto",
+                                                 device_map={"": Accelerator().local_process_index},
                                                  cache_dir=args.cache_dir)
     model.eval()
     tokenizer_name = args.tokenizer_name if args.tokenizer_name else args.model_name
