@@ -53,21 +53,7 @@ if __name__ == "__main__":
         bnb_4bit_compute_dtype="float16",
         use_nested_quant = True,
     )
-    peft_config = LoraConfig(
-                    r=32,
-                    lora_alpha=16,
-                    lora_dropout=0.1,
-                    target_modules=(
-                        "q_proj",
-                        "k_proj",
-                        "v_proj",
-                        "o_proj",
-                        "gate_proj",
-                        "up_proj",
-                        "down_proj",
-                        "lm_head",),
-                    bias="none",
-                    task_type="CAUSAL_LM")
+
     model = AutoModelForCausalLM.from_pretrained(args.model_name, 
                                                         quantization_config=bnb_config,
                                                         device_map={"": Accelerator().local_process_index},
@@ -80,11 +66,7 @@ if __name__ == "__main__":
     for batch in tqdm(dl):
         tokens = tokenizer(batch, padding=True, return_tensors="pt")
         mask = tokens["attention_mask"]
-        labels = tokens["input_ids"].clone()
-        labels[~mask.bool()] = -100
-        out = model(**tokens, labels=labels)
-        loss = out.loss.item()
-        losses.append(loss * args.batch_size)
+        out = model(**tokens)
 
     with open(args.save_path, "a") as f:
         f.write(f"{args.model_name},{sum(losses) / len(ds)}\n")

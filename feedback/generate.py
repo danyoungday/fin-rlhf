@@ -21,6 +21,8 @@ def create_argparser():
     parser.add_argument("--dataset_name",
                         default="gbharti/finance-alpaca",
                         help="the dataset to generate responses to")
+    parser.add_argument("--split",
+                        default="train[:24%]")
     parser.add_argument("--cache_dir",
                         default="cache_dir",
                         help="where to cache the huggingface objects")

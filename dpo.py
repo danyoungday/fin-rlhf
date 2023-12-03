@@ -59,7 +59,7 @@ class ScriptArguments:
     save_steps: Optional[int] = field(default=5, metadata={"help": "the saving frequency"})
     eval_steps: Optional[int] = field(default=5, metadata={"help": "the evaluation frequency"})
 
-    output_dir: Optional[str] = field(default="results/dpo-finqa", metadata={"help": "the output directory"})
+    output_dir: Optional[str] = field(default="results/dpo-finqa-2", metadata={"help": "the output directory"})
 
     # instrumentation
     sanity_check: Optional[bool] = field(default=False, metadata={"help": "only train on 1000 samples"})
@@ -74,18 +74,16 @@ class ScriptArguments:
 
 
 def parse_to_dpo_format(sample):
-    if sample["label"] == 1:
-        return{
-            "prompt": sample["prompt"],
-            "chosen": sample["response_b"],
-            "rejected": sample["response_a"]
-        }
-    else:
-        return {
-            "prompt": sample["prompt"],
-            "chosen": sample["response_a"],
-            "rejected": sample["response_b"]
-        }
+    prompt = f"<s>{sample['prompt']} "
+    chosen_key = "response_a" if sample["label"] == 0 else "response_b"
+    rejected_key = "response_b" if sample["label"] == 0 else "response_a"
+    chosen = f"{sample[chosen_key]}</s>"
+    rejected = f"{sample[rejected_key]}</s>"
+    return {
+        "prompt": prompt,
+        "chosen": chosen,
+        "rejected": rejected
+    }
 
 def create_datasets(args):
     dataset = load_dataset(
@@ -101,11 +99,10 @@ def create_datasets(args):
     original_columns = dataset.column_names
     dataset = dataset.map(
         parse_to_dpo_format,
-        batched=True,
         num_proc=4,
         remove_columns=original_columns,
     )
-    dataset = dataset.train_test_split(test_size=0.005, shuffle=True, seed=42)
+    dataset = dataset.train_test_split(test_size=0.1, shuffle=True, seed=42)
     train_data = dataset["train"]
     valid_data = dataset["test"]
 
