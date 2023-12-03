@@ -5,10 +5,10 @@ import argparse
 def create_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--unlabeled_path",
-                        default="feedback/unlabeled.csv",
+                        default="feedback/finance-alpaca-unlabeled.csv",
                         help="path to unlabeled prompt/abresponse data")
     parser.add_argument("--labels_path",
-                        default="feedback/labels.csv",
+                        default="feedback/finance-alpaca-labels.csv",
                         help="path to the labels for the unlabeled data")
     parser.add_argument("--hf_repo",
                         default="danyoung/finance-feedback",
@@ -20,11 +20,16 @@ def create_argparser():
 
 if __name__ == "__main__":
     args = create_argparser()
+    print(args.labels_path)
     labels = pd.read_csv(args.labels_path)
     df = pd.read_csv(args.unlabeled_path).iloc[:len(labels)]
-    df["label"] = labels
+    df["label"] = labels["label"]
+    df["bad"] = labels["bad"]
     dataset = Dataset.from_pandas(df)
     dataset.push_to_hub(args.hf_repo)
 
-    validate = load_dataset(args.hf_repo, cache_dir=args.cache_dir)
+    validate = load_dataset(args.hf_repo, 
+                            cache_dir=args.cache_dir, 
+                            features=dataset.features,
+                            download_mode="force_redownload")
     assert len(validate["train"]) == len(dataset), "Warning: loaded dataset length not same as constructed one."

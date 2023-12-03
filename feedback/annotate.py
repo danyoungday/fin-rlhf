@@ -32,6 +32,6 @@ if __name__ == "__main__":
             if label < 3:
                 f.write(f"{label-1},0\n")
             else:
-                f.write(f"{label-3},1")
+                f.write(f"{label-3},1\n")
             print("".join(["-" for _ in range(100)]))
             print(f"Chose {label}")
