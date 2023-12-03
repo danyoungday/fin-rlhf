@@ -10,7 +10,7 @@ Annotate dataset with ``python feedback/annotate.py --unlabeled_path="feedback/f
 
 Merge generations with annotations and upload to huggingface with ``python feedback/merge_labels.py --hf_repo="danyoung/finance-feedback"``
 
-Run DPO with ``accelerate launch dpo.py --output_dir="dpo" --train_pct=0.01 --max_steps=5 --logging_steps=1 --eval_steps=5 --save_steps=5``
+Run DPO with ``accelerate launch dpo.py``
 
 Upload model with ``huggingface-cli upload danyoung/finance-qa results/sft-finqa/final_model``
 
