@@ -2,3 +2,4 @@ cache_dir/
 wandb/
 .venv/
 results/
+**/evaluation/*/
